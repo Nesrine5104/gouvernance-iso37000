@@ -1,0 +1,940 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ISO 37000 — Tableau de Bord Gouvernance</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Jost:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0d1117; --card: #161b22; --card2: #1c2333;
+  --border: #30363d; --accent: #4fa3e0; --accent2: #f0a500;
+  --good: #3fb950; --medium: #d29922; --bad: #f85149;
+  --text: #e6edf3; --muted: #8b949e; --radius: 14px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Jost', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+
+.header {
+  background: linear-gradient(135deg, #0d1117 0%, #1a2744 60%, #0d2137 100%);
+  border-bottom: 1px solid var(--border);
+  padding: 2.5rem 3rem 2rem; position: relative; overflow: hidden;
+}
+.header::before {
+  content: ''; position: absolute; top: -80px; right: -80px;
+  width: 320px; height: 320px;
+  background: radial-gradient(circle, rgba(79,163,224,0.12) 0%, transparent 70%);
+  border-radius: 50%;
+}
+.header-inner { position: relative; z-index: 1; max-width: 1200px; margin: 0 auto; }
+.logo-zone h1 { font-family: 'Playfair Display', serif; font-size: 2rem; font-weight: 700; color: var(--text); }
+.logo-zone h1 span { color: var(--accent); }
+.logo-zone p { color: var(--muted); font-size: 0.9rem; margin-top: 4px; font-weight: 300; }
+.iso-badge {
+  background: rgba(79,163,224,0.12); border: 1px solid rgba(79,163,224,0.3);
+  color: var(--accent); padding: 6px 16px; border-radius: 20px;
+  font-size: 0.8rem; font-weight: 500; letter-spacing: 1px;
+  text-transform: uppercase; margin-top: 8px; display: inline-block;
+}
+
+.nav {
+  background: var(--card); border-bottom: 1px solid var(--border);
+  padding: 0 3rem; display: flex; gap: 0; overflow-x: auto;
+}
+.nav-btn {
+  padding: 1rem 1.4rem; background: none; border: none;
+  border-bottom: 2px solid transparent; color: var(--muted);
+  font-family: 'Jost', sans-serif; font-size: 0.88rem; font-weight: 500;
+  cursor: pointer; transition: all 0.2s; white-space: nowrap;
+}
+.nav-btn:hover { color: var(--text); }
+.nav-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+.main { max-width: 1200px; margin: 0 auto; padding: 2rem; }
+.page { display: none; }
+.page.active { display: block; }
+
+/* UPLOAD */
+.upload-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-bottom: 2rem; }
+@media(max-width:700px){ .upload-row { grid-template-columns: 1fr; } }
+.upload-box {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 1.8rem; text-align: center;
+}
+.upload-box h3 { font-family:'Playfair Display',serif; font-size:1rem; margin-bottom:0.5rem; }
+.upload-box p { color:var(--muted); font-size:0.82rem; margin-bottom:1rem; line-height:1.6; }
+.upload-zone {
+  border: 2px dashed var(--border); border-radius:10px; padding:1.5rem;
+  cursor:pointer; transition:all 0.2s; background:var(--bg); display:block; width:100%;
+}
+.upload-zone:hover { border-color:var(--accent); background:rgba(79,163,224,0.04); }
+.upload-zone input { display:none; }
+.upload-icon { font-size:2rem; margin-bottom:0.5rem; }
+.upload-zone p { color:var(--muted); font-size:0.82rem; margin:0; }
+.upload-zone strong { color:var(--accent); }
+.success-msg {
+  background:rgba(63,185,80,0.1); border:1px solid rgba(63,185,80,0.3);
+  color:var(--good); padding:8px 14px; border-radius:8px;
+  margin-top:0.8rem; font-size:0.82rem; display:none;
+}
+.warning-msg {
+  background:rgba(210,153,34,0.1); border:1px solid rgba(210,153,34,0.3);
+  color:var(--medium); padding:10px 14px; border-radius:8px;
+  margin-top:0.8rem; font-size:0.82rem; display:none; line-height:1.5;
+}
+
+/* METRIC CARDS */
+.metrics-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(155px,1fr)); gap:1rem; margin-bottom:2rem; }
+.metric-card {
+  background:var(--card); border:1px solid var(--border); border-radius:var(--radius);
+  padding:1.3rem 1.4rem; position:relative; overflow:hidden; transition:border-color 0.2s;
+}
+.metric-card:hover { border-color:rgba(79,163,224,0.4); }
+.metric-card::before { content:''; position:absolute; top:0;left:0;right:0; height:2px; background:var(--accent); opacity:0.6; }
+.metric-card.good::before { background:var(--good); }
+.metric-card.medium::before { background:var(--medium); }
+.metric-card.bad::before { background:var(--bad); }
+.metric-label { font-size:0.7rem; color:var(--muted); text-transform:uppercase; letter-spacing:0.8px; margin-bottom:0.5rem; }
+.metric-value { font-size:1.7rem; font-weight:600; color:var(--text); line-height:1; }
+.metric-sub { font-size:0.75rem; color:var(--muted); margin-top:4px; }
+
+.charts-grid { display:grid; grid-template-columns:1fr 1fr; gap:1.5rem; margin-bottom:2rem; }
+.chart-wide { grid-column:1/-1; }
+@media(max-width:750px){ .charts-grid{grid-template-columns:1fr;} .chart-wide{grid-column:1;} }
+.chart-card { background:var(--card); border:1px solid var(--border); border-radius:var(--radius); padding:1.4rem; }
+.chart-card h3 { font-size:0.78rem; color:var(--muted); text-transform:uppercase; letter-spacing:0.8px; margin-bottom:1.2rem; font-weight:500; }
+.chart-card canvas { max-height:300px; }
+
+.section-title {
+  font-family:'Playfair Display',serif; font-size:1.1rem; color:var(--text);
+  margin-bottom:1.2rem; margin-top:0.5rem; display:flex; align-items:center; gap:10px;
+}
+.section-title::after { content:''; flex:1; height:1px; background:var(--border); }
+
+.steps-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:1rem; margin-bottom:2rem; }
+.step-card { background:var(--card); border:1px solid var(--border); border-radius:var(--radius); padding:1.2rem; display:flex; gap:12px; align-items:flex-start; }
+.step-num { background:rgba(79,163,224,0.15); color:var(--accent); width:28px;height:28px; border-radius:50%; display:flex;align-items:center;justify-content:center; font-size:0.8rem;font-weight:600; flex-shrink:0; }
+.step-text p { font-size:0.82rem; font-weight:500; color:var(--text); }
+.step-text span { font-size:0.75rem; color:var(--muted); }
+
+.table-wrap { overflow-x:auto; }
+table { width:100%; border-collapse:collapse; font-size:0.85rem; }
+th { padding:0.7rem 1rem; text-align:left; color:var(--muted); font-size:0.7rem; text-transform:uppercase; letter-spacing:0.6px; font-weight:500; border-bottom:1px solid var(--border); }
+td { padding:0.65rem 1rem; border-bottom:1px solid rgba(48,54,61,0.5); color:var(--text); }
+tr:hover td { background:rgba(255,255,255,0.02); }
+tr:last-child td { border-bottom:none; }
+
+.badge { display:inline-block; padding:3px 10px; border-radius:12px; font-size:0.75rem; font-weight:500; }
+.badge-bon { background:rgba(63,185,80,0.15); color:var(--good); }
+.badge-moyen { background:rgba(210,153,34,0.15); color:var(--medium); }
+.badge-mauvais { background:rgba(248,81,73,0.15); color:var(--bad); }
+
+.form-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:1rem; margin-bottom:1.5rem; }
+.form-group { display:flex; flex-direction:column; gap:5px; }
+.form-group label { font-size:0.72rem; color:var(--muted); text-transform:uppercase; letter-spacing:0.5px; }
+.form-group input {
+  background:var(--bg); border:1px solid var(--border); border-radius:8px;
+  padding:0.55rem 0.8rem; color:var(--text);
+  font-family:'Jost',sans-serif; font-size:0.92rem; transition:border-color 0.2s;
+}
+.form-group input:focus { outline:none; border-color:var(--accent); }
+.form-group .hint { font-size:0.68rem; color:var(--muted); }
+
+.btn { padding:0.65rem 1.8rem; background:var(--accent); color:#0d1117; border:none; border-radius:8px; font-family:'Jost',sans-serif; font-size:0.9rem; font-weight:600; cursor:pointer; transition:opacity 0.2s; }
+.btn:hover { opacity:0.88; }
+.btn-ghost { background:transparent; color:var(--text); border:1px solid var(--border); margin-left:0.8rem; }
+
+.empty-state { text-align:center; padding:3rem; color:var(--muted); }
+.empty-state .icon { font-size:3rem; margin-bottom:1rem; }
+
+.progress-bar { background:rgba(79,163,224,0.15); border-radius:4px; height:6px; margin-top:6px; overflow:hidden; }
+.progress-fill { height:100%; border-radius:4px; background:var(--accent); transition:width 0.5s ease; }
+
+@keyframes fadeIn { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
+.fade-in { animation:fadeIn 0.4s ease forwards; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-inner">
+    <div class="logo-zone">
+      <h1>Gouvernance <span>ISO 37000</span></h1>
+      <p>Tableau de bord — Évaluation · Prédiction · Classification de la maturité organisationnelle</p>
+      <span class="iso-badge">Projet PFA</span>
+    </div>
+  </div>
+</div>
+
+<div class="nav">
+  <button class="nav-btn active" onclick="goTo('accueil',this)">Vue d'ensemble</button>
+  <button class="nav-btn" onclick="goTo('nettoyage',this)">Nettoyage</button>
+  <button class="nav-btn" onclick="goTo('scores',this)">Scores & Principes</button>
+  <button class="nav-btn" onclick="goTo('prediction',this)">Prédiction 2024</button>
+  <button class="nav-btn" onclick="goTo('classification',this)">Classification</button>
+  <button class="nav-btn" onclick="goTo('manuel',this)">Saisie Manuelle</button>
+</div>
+
+<div class="main">
+
+<!-- ===== ACCUEIL ===== -->
+<div id="page-accueil" class="page active">
+  <div class="upload-row">
+
+    <div class="upload-box">
+      <h3>📄 Fichier JSON (recommandé)</h3>
+      <p>Exportez <strong style="color:var(--accent)">resultats_iso37000.json</strong> depuis Colab. Contient tous vos résultats exacts — nettoyage, scores, prédictions, classifications.</p>
+      <label class="upload-zone" for="json-input">
+        <div class="upload-icon">📂</div>
+        <p>Cliquez pour choisir votre <strong>fichier .json</strong></p>
+        <input type="file" id="json-input" accept=".json" onchange="chargerJSON(event)">
+      </label>
+      <div class="success-msg" id="json-success"></div>
+    </div>
+
+    <div class="upload-box">
+      <h3>📊 Nouveau Dataset Excel</h3>
+      <p>Uploadez un <strong style="color:var(--accent)">.xlsx</strong> avec les colonnes P1_BP… — les vrais paramètres de votre modèle Colab sont utilisés automatiquement.</p>
+      <label class="upload-zone" for="excel-input">
+        <div class="upload-icon">📊</div>
+        <p>Cliquez pour choisir votre <strong>fichier .xlsx</strong></p>
+        <input type="file" id="excel-input" accept=".xlsx,.xls" onchange="chargerExcel(event)">
+      </label>
+      <div class="success-msg" id="excel-success"></div>
+      <div class="warning-msg" id="excel-warning"></div>
+    </div>
+
+  </div>
+
+  <div id="accueil-content" style="display:none">
+    <div class="section-title">Statistiques générales</div>
+    <div class="metrics-grid" id="metrics-accueil"></div>
+    <div class="charts-grid">
+      <div class="chart-card"><h3>Évolution de la maturité par année</h3><canvas id="chart-evol"></canvas></div>
+      <div class="chart-card"><h3>Répartition des classifications</h3><canvas id="chart-pie"></canvas></div>
+    </div>
+  </div>
+
+  <div id="accueil-empty" class="empty-state">
+    <div class="icon">📊</div>
+    <p>Chargez votre fichier JSON ou Excel pour afficher le tableau de bord</p>
+  </div>
+</div>
+
+<!-- ===== NETTOYAGE ===== -->
+<div id="page-nettoyage" class="page">
+  <div id="nettoyage-empty" class="empty-state"><div class="icon">🔍</div><p>Chargez d'abord votre fichier</p></div>
+  <div id="nettoyage-content" style="display:none">
+    <div class="section-title">Étapes de nettoyage appliquées</div>
+    <div class="steps-grid">
+      <div class="step-card"><div class="step-num">1</div><div class="step-text"><p>Valeurs manquantes</p><span>Remplacement par la médiane de chaque colonne</span></div></div>
+      <div class="step-card"><div class="step-num">2</div><div class="step-text"><p>Suppression des doublons</p><span>Lignes identiques supprimées</span></div></div>
+      <div class="step-card"><div class="step-num">3</div><div class="step-text"><p>Valeurs hors plage</p><span>Valeurs &lt;0 ou &gt;100 remplacées par la médiane</span></div></div>
+      <div class="step-card"><div class="step-num">4</div><div class="step-text"><p>Filtrage des années</p><span>Seules les années 2019–2023 conservées</span></div></div>
+      <div class="step-card"><div class="step-num">5</div><div class="step-text"><p>Normalisation MinMax</p><span>Tous les indicateurs ramenés entre 0 et 1</span></div></div>
+    </div>
+    <div class="section-title">Résultat après nettoyage</div>
+    <div class="metrics-grid" id="metrics-nettoyage"></div>
+  </div>
+</div>
+
+<!-- ===== SCORES ===== -->
+<div id="page-scores" class="page">
+  <div id="scores-empty" class="empty-state"><div class="icon">📈</div><p>Chargez d'abord votre fichier</p></div>
+  <div id="scores-content" style="display:none">
+    <div class="section-title">Scores moyens par Principe ISO 37000</div>
+    <div class="charts-grid">
+      <div class="chart-card"><h3>Score moyen par Principe — échelle ajustée</h3><canvas id="chart-bar-p"></canvas></div>
+      <div class="chart-card"><h3>Profil de maturité — Radar ISO 37000</h3><canvas id="chart-radar"></canvas></div>
+    </div>
+    <div class="section-title">Détail par principe</div>
+    <div id="principes-detail"></div>
+    <div class="metrics-grid" id="metrics-scores" style="margin-top:1.5rem"></div>
+  </div>
+</div>
+
+<!-- ===== PREDICTION ===== -->
+<div id="page-prediction" class="page">
+  <div id="pred-empty" class="empty-state"><div class="icon">🔮</div><p>Chargez d'abord votre fichier</p></div>
+  <div id="pred-content" style="display:none">
+    <div class="section-title">Prédiction du Score Global 2024</div>
+    <p style="color:var(--muted);font-size:0.88rem;margin-bottom:1.5rem;">
+      Modèle : <strong style="color:var(--accent)">Régression Linéaire</strong> —
+      Variables : Score_P1, Score_P9, Score_P10, Score_P11, Score_Global
+    </p>
+    <div class="metrics-grid" id="metrics-pred"></div>
+    <div class="chart-card chart-wide" style="margin-bottom:1.5rem">
+      <h3>Score actuel vs Score prédit 2024 (20 premiers organismes)</h3>
+      <canvas id="chart-pred-bar" style="max-height:320px"></canvas>
+    </div>
+    <div class="section-title">Aperçu des organismes</div>
+    <div class="chart-card">
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>ID Organisme</th><th>Score Actuel</th><th>Score Prédit 2024</th><th>Variation</th></tr></thead>
+          <tbody id="tbody-pred"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== CLASSIFICATION ===== -->
+<div id="page-classification" class="page">
+  <div id="cls-empty" class="empty-state"><div class="icon">🏷️</div><p>Chargez d'abord votre fichier</p></div>
+  <div id="cls-content" style="display:none">
+    <div class="section-title">Classification de la gouvernance (SVM)</div>
+    <p style="color:var(--muted);font-size:0.88rem;margin-bottom:1.5rem;">
+      Seuils : <strong style="color:var(--bad)">Mauvaise</strong> ≤ 0.483 —
+      <strong style="color:var(--medium)">Moyenne</strong> ≤ 0.517 —
+      <strong style="color:var(--good)">Bonne</strong> > 0.517
+    </p>
+    <div class="metrics-grid" id="metrics-cls"></div>
+    <div class="charts-grid">
+      <div class="chart-card"><h3>Répartition des classes</h3><canvas id="chart-cls-pie"></canvas></div>
+      <div class="chart-card"><h3>Nombre d'organismes par classe</h3><canvas id="chart-cls-bar"></canvas></div>
+    </div>
+    <div class="section-title">Détail par organisme</div>
+    <div class="chart-card">
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>ID</th><th>Score Actuel</th><th>Score Prédit 2024</th><th>Classification</th></tr></thead>
+          <tbody id="tbody-cls"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== MANUEL ===== -->
+<div id="page-manuel" class="page">
+  <div class="section-title">Évaluation manuelle d'un organisme</div>
+  <p style="color:var(--muted);font-size:0.88rem;margin-bottom:1.5rem;">
+    Entrez les scores normalisés entre <strong style="color:var(--accent)">0 et 1</strong> pour chaque principe ISO 37000.
+  </p>
+  <div class="chart-card" style="margin-bottom:1.5rem">
+    <div class="form-grid">
+      <div class="form-group"><label>P1 — Gouvernance</label><input type="number" id="m1" min="0" max="1" step="0.01" placeholder="ex: 0.72"><span class="hint">entre 0 et 1</span></div>
+      <div class="form-group"><label>P2 — Stratégie</label><input type="number" id="m2" min="0" max="1" step="0.01" placeholder="ex: 0.68"></div>
+      <div class="form-group"><label>P3 — Conformité</label><input type="number" id="m3" min="0" max="1" step="0.01" placeholder="ex: 0.75"></div>
+      <div class="form-group"><label>P4 — Risques</label><input type="number" id="m4" min="0" max="1" step="0.01" placeholder="ex: 0.60"></div>
+      <div class="form-group"><label>P5 — Performance</label><input type="number" id="m5" min="0" max="1" step="0.01" placeholder="ex: 0.80"></div>
+      <div class="form-group"><label>P6 — Culture</label><input type="number" id="m6" min="0" max="1" step="0.01" placeholder="ex: 0.55"></div>
+      <div class="form-group"><label>P7 — Parties prenantes</label><input type="number" id="m7" min="0" max="1" step="0.01" placeholder="ex: 0.70"></div>
+      <div class="form-group"><label>P8 — Responsabilité</label><input type="number" id="m8" min="0" max="1" step="0.01" placeholder="ex: 0.65"></div>
+      <div class="form-group"><label>P9 — Transparence</label><input type="number" id="m9" min="0" max="1" step="0.01" placeholder="ex: 0.73"></div>
+      <div class="form-group"><label>P10 — Durabilité</label><input type="number" id="m10" min="0" max="1" step="0.01" placeholder="ex: 0.58"></div>
+      <div class="form-group"><label>P11 — Leadership</label><input type="number" id="m11" min="0" max="1" step="0.01" placeholder="ex: 0.77"></div>
+    </div>
+    <button class="btn" onclick="calculerManuel()">Calculer</button>
+    <button class="btn btn-ghost" onclick="resetManuel()">Réinitialiser</button>
+  </div>
+  <div id="result-manuel" style="display:none">
+    <div class="section-title">Résultats</div>
+    <div class="metrics-grid" id="metrics-manuel"></div>
+    <div class="charts-grid">
+      <div class="chart-card"><h3>Profil de maturité — Radar</h3><canvas id="chart-manuel-radar"></canvas></div>
+      <div class="chart-card"><h3>Scores par principe — échelle ajustée</h3><canvas id="chart-manuel-bar"></canvas></div>
+    </div>
+  </div>
+</div>
+
+</div>
+
+<script>
+let DATA = null;
+let MODEL = null; // paramètres du vrai modèle Colab
+let charts = {};
+
+function destroyChart(id) { if (charts[id]) { charts[id].destroy(); delete charts[id]; } }
+function goTo(page, btn) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('page-' + page).classList.add('active');
+  btn.classList.add('active');
+}
+
+function classifier(score) {
+  if (score <= 0.483236) return { label: 'Mauvaise', badge: 'badge-mauvais', color: 'var(--bad)' };
+  if (score <= 0.516527) return { label: 'Moyenne',  badge: 'badge-moyen',   color: 'var(--medium)' };
+  return { label: 'Bonne', badge: 'badge-bon', color: 'var(--good)' };
+}
+
+// ===================== JSON =====================
+function chargerJSON(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      DATA = JSON.parse(e.target.result);
+
+      // Sauvegarder les paramètres du modèle pour usage Excel futur
+      if (DATA.modele) MODEL = DATA.modele;
+
+      // Corriger classes manquantes
+      DATA.organismes.forEach(o => {
+        if (!o.classe || o.classe === 'nan' || o.classe === '') {
+          o.classe = classifier(o.score_actuel).label;
+        }
+      });
+
+      // Recalculer counts corrigés
+      const counts = { 'Bonne':0, 'Moyenne':0, 'Mauvaise':0 };
+      DATA.organismes.forEach(o => { if (counts[o.classe]!==undefined) counts[o.classe]++; });
+      DATA.classification = counts;
+
+      document.getElementById('json-success').style.display = 'block';
+      document.getElementById('json-success').textContent = '✓ ' + file.name + ' — ' + DATA.organismes.length + ' organismes chargés';
+      afficherTout();
+    } catch(err) { alert('Erreur : fichier JSON invalide.'); }
+  };
+  reader.readAsText(file);
+}
+
+// ===================== EXCEL =====================
+function chargerExcel(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  if (!MODEL) {
+    document.getElementById('excel-warning').style.display = 'block';
+    document.getElementById('excel-warning').textContent =
+      '⚠️ Conseil : chargez d\'abord le fichier JSON pour utiliser les vrais paramètres de votre modèle Colab. Sinon les résultats seront approximatifs.';
+  }
+
+  document.getElementById('excel-success').style.display = 'block';
+  document.getElementById('excel-success').textContent = '⏳ Traitement en cours...';
+
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      const wb = XLSX.read(new Uint8Array(e.target.result), { type: 'array' });
+      const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
+      if (!rows.length) { alert('Fichier vide.'); return; }
+      traiterExcel(rows, file.name);
+    } catch(err) { alert('Erreur lecture Excel : ' + err.message); }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function traiterExcel(rows, fname) {
+  const allCols = Object.keys(rows[0]);
+  const colsBP = allCols.filter(c => /^P\d+_BP\d+/.test(c));
+  const colAnnee = allCols.find(c => c.toLowerCase() === 'annee') || 'Annee';
+  const colID = allCols.find(c => c.toLowerCase().includes('id_org')) || allCols[0];
+  const nb_avant = rows.length;
+
+  // ---- 1. NETTOYAGE exact comme Colab ----
+  // Remplacer valeurs manquantes par médiane
+  colsBP.forEach(col => {
+    const vals = rows.map(r => parseFloat(r[col])).filter(v => !isNaN(v)).sort((a,b)=>a-b);
+    const med = vals.length ? vals[Math.floor(vals.length/2)] : 0;
+    rows.forEach(r => { if (isNaN(parseFloat(r[col]))) r[col] = med; });
+  });
+
+  // Supprimer doublons
+  const seen = new Set();
+  rows = rows.filter(r => {
+    const key = colsBP.map(c => r[c]).join('|') + '|' + r[colID] + '|' + r[colAnnee];
+    if (seen.has(key)) return false;
+    seen.add(key); return true;
+  });
+
+  // Corriger valeurs hors plage (0-100) → remplacer par médiane
+  colsBP.forEach(col => {
+    const vals = rows.map(r => parseFloat(r[col])).filter(v => !isNaN(v) && v>=0 && v<=100).sort((a,b)=>a-b);
+    const med = vals.length ? vals[Math.floor(vals.length/2)] : 0;
+    rows.forEach(r => {
+      const v = parseFloat(r[col]);
+      if (isNaN(v) || v < 0 || v > 100) r[col] = med;
+    });
+  });
+
+  // Filtrer années 2019-2023
+  rows = rows.filter(r => {
+    const a = parseInt(r[colAnnee]);
+    return !isNaN(a) && a >= 2019 && a <= 2023;
+  });
+
+  // ---- 2. NORMALISATION MinMax ----
+  // Utiliser les vrais min/max du modèle Colab si disponibles
+  const minsScaler = MODEL ? MODEL.mins_scaler : null;
+  const maxsScaler = MODEL ? MODEL.maxs_scaler : null;
+
+  colsBP.forEach(col => {
+    let minVal, maxVal;
+    if (minsScaler && minsScaler[col] !== undefined) {
+      // Vrais paramètres du modèle Colab
+      minVal = minsScaler[col];
+      maxVal = maxsScaler[col];
+    } else {
+      // Fallback: min/max du fichier chargé
+      const vals = rows.map(r => parseFloat(r[col])).filter(v => !isNaN(v));
+      minVal = Math.min(...vals);
+      maxVal = Math.max(...vals);
+    }
+    const range = maxVal - minVal || 1;
+    rows.forEach(r => {
+      r[col + '_norm'] = Math.min(1, Math.max(0, (parseFloat(r[col]) - minVal) / range));
+    });
+  });
+
+  // ---- 3. CALCUL DES SCORES PAR PRINCIPE ----
+  // Grouper les BP par principe
+  const principes = {};
+  colsBP.forEach(col => {
+    const match = col.match(/^(P\d+)_BP/);
+    if (match) {
+      const p = match[1];
+      if (!principes[p]) principes[p] = [];
+      principes[p].push(col + '_norm');
+    }
+  });
+  const pKeys = Object.keys(principes).sort((a,b) => parseInt(a.slice(1)) - parseInt(b.slice(1)));
+
+  rows.forEach(row => {
+    pKeys.forEach(p => {
+      const bpVals = principes[p].map(c => parseFloat(row[c]) || 0);
+      row['Score_' + p] = bpVals.reduce((a,b)=>a+b,0) / bpVals.length;
+    });
+    // Score Global = moyenne des 11 principes
+    const scores = pKeys.map(p => row['Score_' + p] || 0);
+    row['Score_Global'] = scores.reduce((a,b)=>a+b,0) / scores.length;
+  });
+
+  // ---- 4. PREDICTION (vrais coefficients si disponibles) ----
+  const byID = {};
+  rows.forEach(r => {
+    const id = r[colID];
+    if (!byID[id]) byID[id] = [];
+    byID[id].push(r);
+  });
+  Object.values(byID).forEach(grp => grp.sort((a,b) => a[colAnnee]-b[colAnnee]));
+
+  // Calculer variations pour entraîner le modèle
+  const X_train = [], y_train = [];
+  Object.values(byID).forEach(grp => {
+    for (let i=1; i<grp.length; i++) {
+      const prev = grp[i-1], curr = grp[i];
+      X_train.push([
+        prev['Score_P10'] || 0,
+        prev['Score_P1']  || 0,
+        prev['Score_P9']  || 0,
+        prev['Score_P11'] || 0,
+        prev['Score_Global']
+      ]);
+      y_train.push(curr['Score_Global'] - prev['Score_Global']);
+    }
+  });
+
+  // Utiliser vrais coefficients si disponibles, sinon régresser
+  let coefs, intercept;
+  if (MODEL && MODEL.coefs_lr) {
+    // Vrais coefficients du modèle Colab
+    const c = MODEL.coefs_lr;
+    coefs = [
+      c['Score_P10'] || 0,
+      c['Score_P1']  || 0,
+      c['Score_P9']  || 0,
+      c['Score_P11'] || 0,
+      c['Score_Global'] || 0
+    ];
+    intercept = MODEL.intercept_lr || 0;
+  } else if (X_train.length > 5) {
+    const result = linearRegression(X_train, y_train);
+    coefs = result.coefs; intercept = result.intercept;
+  } else {
+    coefs = [0,0,0,0,0]; intercept = 0;
+  }
+
+  // Prédire pour la dernière année de chaque organisme
+  const df_final = [];
+  Object.values(byID).forEach(grp => {
+    const last = grp[grp.length - 1];
+    const x = [
+      last['Score_P10'] || 0,
+      last['Score_P1']  || 0,
+      last['Score_P9']  || 0,
+      last['Score_P11'] || 0,
+      last['Score_Global']
+    ];
+    const variation = intercept + coefs.reduce((s,c,i) => s + c*x[i], 0);
+    last['Score_Predit'] = Math.min(1, Math.max(0, last['Score_Global'] + variation));
+    last['Classe'] = classifier(last['Score_Global']).label;
+    df_final.push(last);
+  });
+
+  // ---- 5. CONSTRUIRE DATA ----
+  const allScores = rows.map(r => r['Score_Global']);
+  const scoreMoyen = allScores.reduce((a,b)=>a+b,0) / allScores.length;
+  const scorePreditMoyen = df_final.map(r=>r['Score_Predit']).reduce((a,b)=>a+b,0) / df_final.length;
+
+  const parAnnee = {};
+  rows.forEach(r => {
+    const a = r[colAnnee];
+    if (!parAnnee[a]) parAnnee[a] = [];
+    parAnnee[a].push(r['Score_Global']);
+  });
+  const annees = Object.keys(parAnnee).map(Number).sort();
+  const scoresEvol = annees.map(a => {
+    const v = parAnnee[a];
+    return v.reduce((s,x)=>s+x,0)/v.length;
+  });
+
+  const moyP = pKeys.map(p => {
+    const v = rows.map(r => r['Score_'+p]).filter(x => !isNaN(x));
+    return v.reduce((a,b)=>a+b,0)/v.length;
+  });
+
+  const counts = { 'Bonne':0, 'Moyenne':0, 'Mauvaise':0 };
+  df_final.forEach(r => { if (counts[r['Classe']] !== undefined) counts[r['Classe']]++; });
+
+  DATA = {
+    stats: {
+      nb_organismes: Object.keys(byID).length,
+      nb_lignes: rows.length,
+      nb_lignes_avant: nb_avant,
+      score_moyen: +scoreMoyen.toFixed(4),
+      score_predit_moyen: +scorePreditMoyen.toFixed(4),
+      annees: annees,
+    },
+    evolution: { annees, scores: scoresEvol.map(s => +s.toFixed(4)) },
+    principes: { labels: pKeys, moyennes: moyP.map(m => +m.toFixed(4)) },
+    classification: counts,
+    organismes: df_final.slice(0,500).map(r => ({
+      id: r[colID],
+      score_actuel: +r['Score_Global'].toFixed(4),
+      score_predit: +r['Score_Predit'].toFixed(4),
+      classe: r['Classe']
+    }))
+  };
+
+  document.getElementById('excel-success').textContent =
+    '✓ ' + fname + ' — ' + DATA.stats.nb_organismes + ' organismes traités' +
+    (MODEL ? ' (modèle Colab appliqué ✓)' : ' (paramètres approximatifs)');
+
+  afficherTout();
+}
+
+// ---- Régression linéaire OLS ----
+function linearRegression(X, y) {
+  const n = X.length, p = X[0].length;
+  const Xb = X.map(row => [1, ...row]);
+  const XtX = Array(p+1).fill(0).map(()=>Array(p+1).fill(0));
+  const Xty = Array(p+1).fill(0);
+  for(let i=0;i<n;i++){
+    for(let j=0;j<p+1;j++){
+      Xty[j] += Xb[i][j]*y[i];
+      for(let k=0;k<p+1;k++) XtX[j][k] += Xb[i][j]*Xb[i][k];
+    }
+  }
+  const beta = gaussJordan(XtX, Xty);
+  return { intercept: beta[0], coefs: beta.slice(1) };
+}
+function gaussJordan(A, b) {
+  const n = b.length;
+  const M = A.map((row,i) => [...row, b[i]]);
+  for(let col=0;col<n;col++){
+    let maxRow=col;
+    for(let row=col+1;row<n;row++) if(Math.abs(M[row][col])>Math.abs(M[maxRow][col])) maxRow=row;
+    [M[col],M[maxRow]]=[M[maxRow],M[col]];
+    if(Math.abs(M[col][col])<1e-10) continue;
+    const div=M[col][col];
+    for(let j=col;j<=n;j++) M[col][j]/=div;
+    for(let row=0;row<n;row++){
+      if(row===col) continue;
+      const factor=M[row][col];
+      for(let j=col;j<=n;j++) M[row][j]-=factor*M[col][j];
+    }
+  }
+  return M.map(row=>row[n]);
+}
+
+// ===================== AFFICHAGE =====================
+function afficherTout() {
+  afficherAccueil();
+  afficherNettoyage();
+  afficherScores();
+  afficherPrediction();
+  afficherClassification();
+}
+
+function afficherAccueil() {
+  document.getElementById('accueil-empty').style.display = 'none';
+  document.getElementById('accueil-content').style.display = 'block';
+  const s = DATA.stats;
+  const bon=DATA.classification['Bonne']||0, moy=DATA.classification['Moyenne']||0, mauv=DATA.classification['Mauvaise']||0;
+
+  document.getElementById('metrics-accueil').innerHTML = `
+    <div class="metric-card"><div class="metric-label">Organismes</div><div class="metric-value">${s.nb_organismes}</div><div class="metric-sub">${s.nb_lignes} lignes après nettoyage</div></div>
+    <div class="metric-card"><div class="metric-label">Score Moyen</div><div class="metric-value">${s.score_moyen}</div><div class="metric-sub">normalisé 0–1</div></div>
+    <div class="metric-card"><div class="metric-label">Score Prédit 2024</div><div class="metric-value">${s.score_predit_moyen}</div><div class="metric-sub">régression linéaire</div></div>
+    <div class="metric-card good"><div class="metric-label">Bonne gouvernance</div><div class="metric-value" style="color:var(--good)">${bon}</div></div>
+    <div class="metric-card medium"><div class="metric-label">Gouvernance moyenne</div><div class="metric-value" style="color:var(--medium)">${moy}</div></div>
+    <div class="metric-card bad"><div class="metric-label">Mauvaise gouvernance</div><div class="metric-value" style="color:var(--bad)">${mauv}</div></div>
+  `;
+
+  destroyChart('evol');
+  const minE=Math.min(...DATA.evolution.scores), maxE=Math.max(...DATA.evolution.scores);
+  charts['evol'] = new Chart(document.getElementById('chart-evol'), {
+    type:'line',
+    data:{ labels:DATA.evolution.annees,
+      datasets:[{ label:'Score Moyen', data:DATA.evolution.scores,
+        borderColor:'#4fa3e0', backgroundColor:'rgba(79,163,224,0.08)',
+        borderWidth:2.5, pointRadius:5, fill:true, tension:0.3, pointBackgroundColor:'#4fa3e0'}]},
+    options:{
+      scales:{
+        y:{ min:Math.max(0,minE-0.05), max:Math.min(1,maxE+0.05), grid:{color:'rgba(255,255,255,0.05)'}, ticks:{color:'#8b949e',callback:v=>v.toFixed(3)} },
+        x:{ grid:{color:'rgba(255,255,255,0.05)'}, ticks:{color:'#8b949e'} }
+      },
+      plugins:{legend:{display:false}}, responsive:true
+    }
+  });
+
+  destroyChart('pie');
+  charts['pie'] = new Chart(document.getElementById('chart-pie'), {
+    type:'doughnut',
+    data:{ labels:['Bonne','Moyenne','Mauvaise'],
+      datasets:[{data:[bon,moy,mauv], backgroundColor:['rgba(63,185,80,0.8)','rgba(210,153,34,0.8)','rgba(248,81,73,0.8)'], borderWidth:0, hoverOffset:6}]},
+    options:{plugins:{legend:{position:'bottom',labels:{color:'#8b949e',padding:16}}}, responsive:true, cutout:'60%'}
+  });
+}
+
+function afficherNettoyage() {
+  document.getElementById('nettoyage-empty').style.display = 'none';
+  document.getElementById('nettoyage-content').style.display = 'block';
+  const s = DATA.stats;
+  document.getElementById('metrics-nettoyage').innerHTML = `
+    <div class="metric-card"><div class="metric-label">Lignes avant nettoyage</div><div class="metric-value">${s.nb_lignes_avant || '—'}</div></div>
+    <div class="metric-card"><div class="metric-label">Lignes après nettoyage</div><div class="metric-value">${s.nb_lignes}</div></div>
+    <div class="metric-card"><div class="metric-label">Organismes uniques</div><div class="metric-value">${s.nb_organismes}</div></div>
+    <div class="metric-card good"><div class="metric-label">Valeurs manquantes restantes</div><div class="metric-value" style="color:var(--good)">0</div><div class="metric-sub">après remplacement médiane</div></div>
+    <div class="metric-card"><div class="metric-label">Normalisation</div><div class="metric-value" style="font-size:1rem;color:var(--accent)">MinMax</div><div class="metric-sub">entre 0 et 1</div></div>
+  `;
+}
+
+function afficherScores() {
+  document.getElementById('scores-empty').style.display = 'none';
+  document.getElementById('scores-content').style.display = 'block';
+  const p = DATA.principes;
+  const moy = p.moyennes;
+  const couleurs = moy.map(v => v>=0.7?'rgba(63,185,80,0.8)':v>=0.5?'rgba(210,153,34,0.8)':'rgba(248,81,73,0.8)');
+
+  const minP=Math.min(...moy), maxP=Math.max(...moy);
+  const marge=(maxP-minP)*0.4||0.02;
+  const yMin=Math.max(0,minP-marge), yMax=Math.min(1,maxP+marge);
+
+  destroyChart('bar-p');
+  charts['bar-p'] = new Chart(document.getElementById('chart-bar-p'), {
+    type:'bar',
+    data:{ labels:p.labels, datasets:[{label:'Score moyen',data:moy,backgroundColor:couleurs,borderRadius:6}]},
+    options:{
+      scales:{
+        y:{min:yMin,max:yMax,grid:{color:'rgba(255,255,255,0.05)'},ticks:{color:'#8b949e',callback:v=>v.toFixed(3)}},
+        x:{grid:{display:false},ticks:{color:'#8b949e'}}
+      },
+      plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>' Score: '+ctx.parsed.y.toFixed(4)}}},
+      responsive:true
+    }
+  });
+
+  destroyChart('radar');
+  charts['radar'] = new Chart(document.getElementById('chart-radar'), {
+    type:'radar',
+    data:{ labels:p.labels,
+      datasets:[{label:'Score moyen',data:moy,
+        backgroundColor:'rgba(79,163,224,0.12)',borderColor:'#4fa3e0',
+        borderWidth:2,pointBackgroundColor:'#4fa3e0',pointRadius:4}]},
+    options:{
+      scales:{r:{min:Math.max(0,minP-marge*2),max:Math.min(1,maxP+marge*2),
+        ticks:{stepSize:(maxP-minP)/4||0.05,color:'#8b949e',backdropColor:'transparent'},
+        grid:{color:'rgba(255,255,255,0.08)'},pointLabels:{color:'#8b949e',font:{size:11}}}},
+      plugins:{legend:{display:false}},responsive:true
+    }
+  });
+
+  const detail = document.getElementById('principes-detail');
+  detail.innerHTML = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:0.8rem;">' +
+    moy.map((v,i) => {
+      const cls = v>=0.7?'var(--good)':v>=0.5?'var(--medium)':'var(--bad)';
+      const pct = Math.max(2, ((v-yMin)/(yMax-yMin)*100)).toFixed(0);
+      return `<div class="metric-card" style="padding:0.9rem 1.1rem;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+          <span style="font-size:0.8rem;font-weight:500">${p.labels[i]}</span>
+          <span style="font-size:0.85rem;font-weight:600;color:${cls}">${v.toFixed(4)}</span>
+        </div>
+        <div class="progress-bar"><div class="progress-fill" style="width:${pct}%;background:${cls}"></div></div>
+      </div>`;
+    }).join('') + '</div>';
+
+  const max_p=Math.max(...moy), min_p=Math.min(...moy);
+  document.getElementById('metrics-scores').innerHTML = `
+    <div class="metric-card"><div class="metric-label">Score Global Moyen</div><div class="metric-value">${DATA.stats.score_moyen}</div></div>
+    <div class="metric-card good"><div class="metric-label">Meilleur Principe</div><div class="metric-value" style="color:var(--good);font-size:1.1rem">${p.labels[moy.indexOf(max_p)]}</div><div class="metric-sub">${max_p.toFixed(4)}</div></div>
+    <div class="metric-card bad"><div class="metric-label">Principe le plus faible</div><div class="metric-value" style="color:var(--bad);font-size:1.1rem">${p.labels[moy.indexOf(min_p)]}</div><div class="metric-sub">${min_p.toFixed(4)}</div></div>
+  `;
+}
+
+function afficherPrediction() {
+  document.getElementById('pred-empty').style.display = 'none';
+  document.getElementById('pred-content').style.display = 'block';
+  const orgs = DATA.organismes.slice(0,20);
+
+  document.getElementById('metrics-pred').innerHTML = `
+    <div class="metric-card"><div class="metric-label">Score Moyen Actuel</div><div class="metric-value">${DATA.stats.score_moyen}</div></div>
+    <div class="metric-card"><div class="metric-label">Score Prédit Moyen 2024</div><div class="metric-value">${DATA.stats.score_predit_moyen}</div></div>
+    <div class="metric-card"><div class="metric-label">Organismes analysés</div><div class="metric-value">${DATA.organismes.length}</div></div>
+    <div class="metric-card"><div class="metric-label">Modèle</div><div class="metric-value" style="font-size:0.85rem;color:var(--accent)">Régression Linéaire</div></div>
+  `;
+
+  destroyChart('pred');
+  charts['pred'] = new Chart(document.getElementById('chart-pred-bar'), {
+    type:'bar',
+    data:{ labels:orgs.map(o=>'Org '+o.id),
+      datasets:[
+        {label:'Score Actuel',data:orgs.map(o=>o.score_actuel),backgroundColor:'rgba(79,163,224,0.7)',borderRadius:4},
+        {label:'Score Prédit 2024',data:orgs.map(o=>o.score_predit),backgroundColor:'rgba(240,165,0,0.7)',borderRadius:4}
+      ]},
+    options:{
+      scales:{
+        y:{min:0,max:1,grid:{color:'rgba(255,255,255,0.05)'},ticks:{color:'#8b949e'}},
+        x:{grid:{display:false},ticks:{color:'#8b949e',maxRotation:45}}
+      },
+      plugins:{legend:{labels:{color:'#8b949e'}}},responsive:true
+    }
+  });
+
+  const tbody = document.getElementById('tbody-pred');
+  tbody.innerHTML = '';
+  orgs.forEach(o => {
+    const v = o.score_predit - o.score_actuel;
+    tbody.innerHTML += `<tr>
+      <td>${o.id}</td><td>${o.score_actuel.toFixed(4)}</td><td>${o.score_predit.toFixed(4)}</td>
+      <td style="color:${v>=0?'var(--good)':'var(--bad)'};font-weight:500">${(v>=0?'+':'')+v.toFixed(4)}</td>
+    </tr>`;
+  });
+}
+
+function afficherClassification() {
+  document.getElementById('cls-empty').style.display = 'none';
+  document.getElementById('cls-content').style.display = 'block';
+  const bon=DATA.classification['Bonne']||0, moy=DATA.classification['Moyenne']||0, mauv=DATA.classification['Mauvaise']||0;
+  const total=bon+moy+mauv||1;
+
+  document.getElementById('metrics-cls').innerHTML = `
+    <div class="metric-card good"><div class="metric-label">Bonne gouvernance</div><div class="metric-value" style="color:var(--good)">${bon}</div><div class="metric-sub">${((bon/total)*100).toFixed(1)}%</div></div>
+    <div class="metric-card medium"><div class="metric-label">Gouvernance moyenne</div><div class="metric-value" style="color:var(--medium)">${moy}</div><div class="metric-sub">${((moy/total)*100).toFixed(1)}%</div></div>
+    <div class="metric-card bad"><div class="metric-label">Mauvaise gouvernance</div><div class="metric-value" style="color:var(--bad)">${mauv}</div><div class="metric-sub">${((mauv/total)*100).toFixed(1)}%</div></div>
+    <div class="metric-card"><div class="metric-label">Modèle</div><div class="metric-value" style="font-size:0.85rem;color:var(--accent)">SVM (RBF)</div></div>
+  `;
+
+  destroyChart('cls-pie');
+  charts['cls-pie'] = new Chart(document.getElementById('chart-cls-pie'), {
+    type:'doughnut',
+    data:{labels:['Bonne','Moyenne','Mauvaise'],
+      datasets:[{data:[bon,moy,mauv],backgroundColor:['rgba(63,185,80,0.8)','rgba(210,153,34,0.8)','rgba(248,81,73,0.8)'],borderWidth:0}]},
+    options:{plugins:{legend:{position:'bottom',labels:{color:'#8b949e',padding:14}}},cutout:'55%',responsive:true}
+  });
+
+  destroyChart('cls-bar');
+  charts['cls-bar'] = new Chart(document.getElementById('chart-cls-bar'), {
+    type:'bar',
+    data:{labels:['Bonne','Moyenne','Mauvaise'],
+      datasets:[{data:[bon,moy,mauv],backgroundColor:['rgba(63,185,80,0.8)','rgba(210,153,34,0.8)','rgba(248,81,73,0.8)'],borderRadius:8}]},
+    options:{
+      scales:{y:{grid:{color:'rgba(255,255,255,0.05)'},ticks:{color:'#8b949e'}},x:{grid:{display:false},ticks:{color:'#8b949e'}}},
+      plugins:{legend:{display:false}},responsive:true
+    }
+  });
+
+  const tbody = document.getElementById('tbody-cls');
+  tbody.innerHTML = '';
+  DATA.organismes.slice(0,50).forEach(o => {
+    const b = o.classe==='Bonne'?'badge-bon':o.classe==='Moyenne'?'badge-moyen':'badge-mauvais';
+    tbody.innerHTML += `<tr>
+      <td>${o.id}</td><td>${o.score_actuel.toFixed(4)}</td><td>${o.score_predit.toFixed(4)}</td>
+      <td><span class="badge ${b}">${o.classe}</span></td>
+    </tr>`;
+  });
+}
+
+// ===================== SAISIE MANUELLE =====================
+function calculerManuel() {
+  const vals = [];
+  for(let i=1;i<=11;i++){
+    const v = parseFloat(document.getElementById('m'+i).value);
+    if(isNaN(v)||v<0||v>1){ alert('Veuillez entrer des valeurs entre 0 et 1.'); return; }
+    vals.push(v);
+  }
+  const scoreGlobal = vals.reduce((a,b)=>a+b,0)/11;
+
+  // Vrais coefficients si disponibles
+  let variation;
+  if (MODEL && MODEL.coefs_lr) {
+    const c = MODEL.coefs_lr;
+    variation = MODEL.intercept_lr
+      + (c['Score_P10']||0)*vals[9]
+      + (c['Score_P1'] ||0)*vals[0]
+      + (c['Score_P9'] ||0)*vals[8]
+      + (c['Score_P11']||0)*vals[10]
+      + (c['Score_Global']||0)*scoreGlobal;
+  } else {
+    variation = -0.0012 + 0.003*(vals[9]-0.5) + 0.002*(vals[0]-0.5) + 0.002*(vals[8]-0.5) + 0.001*(vals[10]-0.5) + 0.004*(scoreGlobal-0.5);
+  }
+
+  const scorePredit = Math.min(1, Math.max(0, scoreGlobal + variation));
+  const cls = classifier(scoreGlobal);
+
+  document.getElementById('metrics-manuel').innerHTML = `
+    <div class="metric-card"><div class="metric-label">Score Global</div><div class="metric-value">${scoreGlobal.toFixed(4)}</div><div class="metric-sub">normalisé 0–1</div></div>
+    <div class="metric-card"><div class="metric-label">Variation Prédite</div><div class="metric-value" style="font-size:1.2rem">${(variation>=0?'+':'')+variation.toFixed(4)}</div></div>
+    <div class="metric-card"><div class="metric-label">Score Prédit N+1</div><div class="metric-value">${scorePredit.toFixed(4)}</div></div>
+    <div class="metric-card"><div class="metric-label">Classification</div><div style="margin-top:8px"><span class="badge ${cls.badge}" style="font-size:0.9rem;padding:5px 14px">${cls.label}</span></div></div>
+  `;
+
+  const labels=['P1','P2','P3','P4','P5','P6','P7','P8','P9','P10','P11'];
+  const couleurs=vals.map(v=>v>=0.7?'rgba(63,185,80,0.8)':v>=0.5?'rgba(210,153,34,0.8)':'rgba(248,81,73,0.8)');
+  const minV=Math.min(...vals), maxV=Math.max(...vals);
+  const marge=(maxV-minV)*0.4||0.02;
+
+  destroyChart('manuel-radar');
+  charts['manuel-radar'] = new Chart(document.getElementById('chart-manuel-radar'), {
+    type:'radar',
+    data:{labels,datasets:[{label:'Score',data:vals,
+      backgroundColor:'rgba(79,163,224,0.12)',borderColor:'#4fa3e0',
+      borderWidth:2,pointBackgroundColor:'#4fa3e0',pointRadius:4}]},
+    options:{
+      scales:{r:{min:Math.max(0,minV-marge*2),max:Math.min(1,maxV+marge*2),
+        ticks:{color:'#8b949e',backdropColor:'transparent'},
+        grid:{color:'rgba(255,255,255,0.08)'},pointLabels:{color:'#8b949e',font:{size:11}}}},
+      plugins:{legend:{display:false}},responsive:true
+    }
+  });
+
+  destroyChart('manuel-bar');
+  charts['manuel-bar'] = new Chart(document.getElementById('chart-manuel-bar'), {
+    type:'bar',
+    data:{labels,datasets:[{label:'Score',data:vals,backgroundColor:couleurs,borderRadius:6}]},
+    options:{
+      scales:{
+        y:{min:Math.max(0,minV-marge),max:Math.min(1,maxV+marge),grid:{color:'rgba(255,255,255,0.05)'},ticks:{color:'#8b949e',callback:v=>v.toFixed(3)}},
+        x:{grid:{display:false},ticks:{color:'#8b949e'}}
+      },
+      plugins:{legend:{display:false}},responsive:true
+    }
+  });
+
+  document.getElementById('result-manuel').style.display='block';
+  document.getElementById('result-manuel').scrollIntoView({behavior:'smooth'});
+}
+
+function resetManuel() {
+  for(let i=1;i<=11;i++) document.getElementById('m'+i).value='';
+  document.getElementById('result-manuel').style.display='none';
+}
+</script>
+</body>
+</html>
